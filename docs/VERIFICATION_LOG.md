@@ -84,3 +84,9 @@ Fresh discovery recovered after the timeouts: live heartbeat now records **last_
 On physical APK 1.7.1 the **Run check now** button was pressed once. It returned to its normal enabled state and the screen showed three pending jobs while worker processing continued. Nine labelled dummy holdings, two expected wins and zero date-ineligible wins remained. This verifies accepted asynchronous checking, not a guarantee that unresolved files become verified after pressing the button. Evidence: `.verification/mobile-run-check-now-171.png`. The app was returned to Home.
 
 The remaining 13 official source exceptions, missing pre-2019 history and observed intermittent fetch timeouts prevent a claim of 100% complete checking. See `SESSION_HANDOFF_2026-10-27.md` for the next session's complete starting point and remaining work.
+
+## Final completion observation — 12:09 UTC / 17:09 Pakistan time
+
+The button-triggered background processing progressed and drained: **263 done jobs, zero queued/running/failed**. Latest successful discovery was **11:56:53 UTC** and ingestion **12:05:11 UTC**. Draw states remained 164 verified, five needs_ocr, seven needs_review and one incomplete. This proves actual queued work completion at this snapshot; it does not prove complete coverage of unresolved/missing official history.
+
+Implementation commit `6346477` exists on `feat/official-results-automation-2026-10-27`, with a separate complete handoff documentation commit. GitHub HTTPS push failed with HTTP 403 for saved account `testuserirenictech`; existing SSH authentication also returned public-key permission denied. The owner-provided commit email remains unchanged, and Credential Manager was inspected only, never modified. Remote delivery remains pending; a verified local Git bundle is retained as described in the handoff.

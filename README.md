@@ -35,6 +35,8 @@ Target project: `dwagvpxegvixgztmovyx`. Fifteen migrations, eight functions and 
 
 Read the [deep detailed audit](docs/DEEP_DETAILED_AUDIT.md) for the original/restored UI, View all/search, complete automation flow, date/range scenarios, test evidence and remaining limitations. Discovery recovered at 11:50 UTC after the observed timeouts; the physical Run check now flow was exercised. This does not resolve the 13 ambiguous/scanned draws.
 
+For a new session, start with the [complete 27 October handoff](docs/SESSION_HANDOFF_2026-10-27.md). It records the exact branch/implementation commit, installed APK, remaining work and GitHub push permission blocker. It also explains why Run check now is asynchronous and does not certify missing historical results.
+
 Follow [the runbook](docs/RUNBOOK.md) for MCP/OAuth, owner setup, migrations, Edge Functions, the connectivity spike, scheduling, old-data migration and paused-project recovery. Current evidence and blockers are in [the verification log](docs/VERIFICATION_LOG.md) and [the Phase 0 report](docs/PHASE0_REPORT.md).
 
 The backend is in `supabase/`, the reference parser/tests/corpus tools are in `automation/`, and cloud app/repository code is in `src/cloud/` and `src/data/`. PDF scans remain `needs_ocr` until explicitly processed/reviewed. No paid services have been activated.
