@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- gold ticket with side notches -->
+    <path android:fillColor="#E2B95A"
+        android:pathData="M30,36 h48 a4,4 0 0 1 4,4 v8 a6,6 0 0 0 0,12 v8 a4,4 0 0 1 -4,4 h-48 a4,4 0 0 1 -4,-4 v-8 a6,6 0 0 0 0,-12 v-8 a4,4 0 0 1 4,-4 z"/>
+    <!-- dashed divider -->
+    <path android:fillColor="#B07D14" android:pathData="M64,40 h2 v5 h-2 z M64,49 h2 v5 h-2 z M64,58 h2 v5 h-2 z M64,67 h2 v2 h-2 z"/>
+    <!-- check mark -->
+    <path android:strokeColor="#0B6B4A" android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="#00000000" android:pathData="M37,54 l7,7 l13,-14"/>
+    <!-- lines on stub -->
+    <path android:fillColor="#0B6B4A" android:pathData="M70,47 h6 v3 h-6 z M70,53 h6 v3 h-6 z M70,59 h6 v3 h-6 z"/>
+</vector>
