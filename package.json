@@ -3,11 +3,21 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "postinstall": "node scripts/configure.mjs",
+    "configure": "node scripts/configure.mjs",
+    "preandroid": "node scripts/configure.mjs",
+    "preios": "node scripts/configure.mjs",
+    "prestart": "node scripts/configure.mjs",
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "test:parser": "node automation/test-rs100-200-750-1500.mjs && node automation/test-premium-25000-40000.mjs",
+    "test:automation": "node --test automation/core.test.mjs automation/pipeline.test.mjs",
+    "check:corpus": "node automation/check-corpus.mjs automation/sources.txt",
+    "worker:documents": "node scripts/document-worker.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^3.1.1",
@@ -40,6 +50,6 @@
     "typescript": "^6.0.3"
   },
   "engines": {
-    "node": ">= 22.11.0"
+    "node": "^22.13.0 || ^24.3.0 || >=26.0.0"
   }
 }

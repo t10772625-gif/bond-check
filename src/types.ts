@@ -7,6 +7,11 @@ export interface Claim {
 }
 
 export interface Win {
+  cloudId?: string;
+  drawId?: string;
+  amount?: number;
+  provisional?: boolean;
+  acknowledged?: boolean;
   no: number;
   date: string;
   rank: Rank;
@@ -14,6 +19,7 @@ export interface Win {
 }
 
 export interface Bond {
+  cloudId?: string;
   id: number;
   n: string;
   d: number;

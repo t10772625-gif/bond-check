@@ -5,9 +5,14 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
+jest.mock('../src/cloud/generatedConfig', () => ({
+  cloudConfig: {
+    url: 'https://dwagvpxegvixgztmovyx.supabase.co',
+    publishableKey: '',
+  },
+}));
 
 test('renders the Bond Check splash screen', async () => {
-  jest.useFakeTimers();
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
   try {
     await ReactTestRenderer.act(async () => {
@@ -18,7 +23,5 @@ test('renders the Bond Check splash screen', async () => {
     await ReactTestRenderer.act(async () => {
       renderer?.unmount();
     });
-    jest.clearAllTimers();
-    jest.useRealTimers();
   }
-});
+}, 120000);

@@ -57,6 +57,17 @@ yarn-error.log
 # Testing
 /coverage
 
+# Local connection settings and verification/build caches
+.env
+.env.*
+!.env.example
+.npm-cache/
+.gradle-user/
+.gradle-project/
+.verification/
+src/cloud/generatedConfig.ts
+supabase/.temp/
+
 # Yarn
 .yarn/*
 !.yarn/patches

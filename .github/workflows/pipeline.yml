@@ -1,0 +1,32 @@
+name: Prize bond discovery and keep-alive
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 1 * * *'
+    - cron: '17 7 * * 1,4'
+permissions:
+  contents: read
+concurrency:
+  group: bondcheck-pipeline
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://dwagvpxegvixgztmovyx.supabase.co
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+      - run: node scripts/pipeline-ping.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils antiword
+      - run: python -m pip install xlrd==2.0.1
+      - run: node scripts/document-worker.mjs
+      - run: node scripts/backup-bonds.mjs

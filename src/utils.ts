@@ -1,4 +1,4 @@
-export const DEN = [750, 1500, 7500, 15000, 25000, 40000];
+export const DEN = [100, 200, 750, 1500, 25000, 40000];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const MONTHS_LONG = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -42,7 +42,7 @@ export const daysBetween = (a: string, b: string) => Math.round((toUTC(b) - toUT
 export const norm = (s: string) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 export const split = (s: string) => {
-  const m = norm(s).match(/^([A-Z]*)(\d{5,8})$/);
+  const m = norm(s).match(/^([A-Z]*)(\d{6})$/);
   return m ? { p: m[1], d: m[2] } : null;
 };
 
@@ -54,7 +54,7 @@ export function genRange(a: string, b: string): string[] | null {
   if (!x || !y || x.p !== y.p) return null;
   const s = +x.d;
   const e = +y.d;
-  if (e < s || e - s > 2000) return null;
+  if (e < s || e - s >= 2000) return null;
   const o: string[] = [];
   for (let i = s; i <= e; i++) o.push(x.p + String(i).padStart(x.d.length, '0'));
   return o;

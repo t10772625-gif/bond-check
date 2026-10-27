@@ -3,8 +3,20 @@
  * React Native + TypeScript port of the HTML prototype.
  */
 import React, { useEffect, useState } from 'react';
-import { BackHandler, Keyboard, KeyboardAvoidingView, Platform, Pressable, StatusBar, Text, View } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  BackHandler,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StatusBar,
+  Text,
+  View,
+} from 'react-native';
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { DialogHost, ToastView, Txt } from './src/components/ui';
 import AddScreen from './src/screens/AddScreen';
 import AuthScreen from './src/screens/AuthScreen';
@@ -20,6 +32,11 @@ import PreviewModal from './src/screens/PreviewModal';
 import { AppProvider, useApp } from './src/store/AppStore';
 import { useTheme } from './src/theme';
 import type { Tab } from './src/types';
+import {
+  CloudLoginScreen,
+  CloudSettingsScreen,
+  DrawStatusScreen,
+} from './src/cloud/CloudScreens';
 
 const NAV: [Tab, string, string][] = [
   ['home', '⌂', 'Home'],
@@ -54,12 +71,22 @@ function BottomNav() {
         paddingTop: 6,
         paddingBottom: 8 + insets.bottom,
         paddingHorizontal: 4,
-      }}>
+      }}
+    >
       {NAV.map(([k, icon, label]) => {
         const on = tab === k;
         const chk = k === 'check';
         return (
-          <Pressable key={k} onPress={() => setTab(k)} style={{ flex: 1, alignItems: 'center', gap: 2, paddingVertical: 4 }}>
+          <Pressable
+            key={k}
+            onPress={() => setTab(k)}
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              gap: 2,
+              paddingVertical: 4,
+            }}
+          >
             {chk ? (
               <View
                 style={{
@@ -77,13 +104,28 @@ function BottomNav() {
                   shadowOpacity: 0.4,
                   shadowRadius: 7,
                   shadowOffset: { width: 0, height: 6 },
-                }}>
-                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>{icon}</Text>
+                }}
+              >
+                <Text
+                  style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}
+                >
+                  {icon}
+                </Text>
               </View>
             ) : (
-              <Text style={{ fontSize: 20, color: on ? c.em : c.mut }}>{icon}</Text>
+              <Text style={{ fontSize: 20, color: on ? c.em : c.mut }}>
+                {icon}
+              </Text>
             )}
-            <Txt style={{ fontSize: 11, fontWeight: '600', color: on ? c.em : c.mut }}>{label}</Txt>
+            <Txt
+              style={{
+                fontSize: 11,
+                fontWeight: '600',
+                color: on ? c.em : c.mut,
+              }}
+            >
+              {label}
+            </Txt>
           </Pressable>
         );
       })}
@@ -92,7 +134,7 @@ function BottomNav() {
 }
 
 function MainApp() {
-  const { tab, setTab, sheet, previewOpen } = useApp();
+  const { tab, setTab, sheet, previewOpen, automation } = useApp();
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -109,7 +151,21 @@ function MainApp() {
     return () => sub.remove();
   }, [tab, sheet, previewOpen, setTab]);
 
-  const Screen = { home: HomeScreen, add: AddScreen, check: CheckScreen, results: ResultsScreen, set: SettingsScreen }[tab];
+  const Screen = automation.configured
+    ? {
+        home: HomeScreen,
+        add: AddScreen,
+        check: DrawStatusScreen,
+        results: ResultsScreen,
+        set: CloudSettingsScreen,
+      }[tab]
+    : {
+        home: HomeScreen,
+        add: AddScreen,
+        check: CheckScreen,
+        results: ResultsScreen,
+        set: SettingsScreen,
+      }[tab];
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -118,26 +174,64 @@ function MainApp() {
       </KeyboardAvoidingView>
       <BottomNav />
       {/* solid strip so scrolled content never shows under the clock/battery */}
-      <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: c.bg }} />
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: insets.top,
+          backgroundColor: c.bg,
+        }}
+      />
       <PreviewModal />
     </View>
   );
 }
 
 function Root() {
-  const { phase } = useApp();
+  const { phase, automation } = useApp();
   const { c, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const darkBar = phase === 'splash' || phase === 'loading' || phase === 'logout' || isDark;
+  const [cloudSplash, setCloudSplash] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setCloudSplash(false), 2400);
+    return () => clearTimeout(timer);
+  }, []);
+  const cloudLoading = automation.busy || !automation.loaded;
+  const darkBar =
+    (automation.configured &&
+      (cloudSplash || cloudLoading || automation.signingOut)) ||
+    phase === 'splash' ||
+    phase === 'loading' ||
+    phase === 'logout' ||
+    isDark;
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <StatusBar barStyle={darkBar ? 'light-content' : 'dark-content'} />
-      {phase === 'splash' ? <SplashScreen /> : null}
-      {phase === 'auth' ? <AuthScreen /> : null}
-      {phase === 'locked' ? <LockScreen /> : null}
-      {phase === 'loading' ? <LoadingScreen /> : null}
-      {phase === 'logout' ? <LogoutScreen /> : null}
-      {phase === 'app' ? <MainApp /> : null}
+      {automation.configured ? (
+        cloudSplash ? (
+          <SplashScreen />
+        ) : automation.signingOut ? (
+          <LogoutScreen />
+        ) : cloudLoading ? (
+          <LoadingScreen />
+        ) : !automation.session || !automation.snapshot ? (
+          <CloudLoginScreen />
+        ) : (
+          <MainApp />
+        )
+      ) : (
+        <>
+          {phase === 'splash' ? <SplashScreen /> : null}
+          {phase === 'auth' ? <AuthScreen /> : null}
+          {phase === 'locked' ? <LockScreen /> : null}
+          {phase === 'loading' ? <LoadingScreen /> : null}
+          {phase === 'logout' ? <LogoutScreen /> : null}
+          {phase === 'app' ? <MainApp /> : null}
+        </>
+      )}
       <SheetHost />
       <ToastView bottom={(phase === 'app' ? 90 : 24) + insets.bottom} />
       <DialogHost />

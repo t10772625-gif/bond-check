@@ -1,0 +1,43 @@
+name: Verify BondCheck
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: npm
+      - run: npm ci
+      - run: npm run configure
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test -- --runInBand
+      - run: npm run test:parser
+      - run: npm run test:automation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python automation/test-document-converter.py
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check --config supabase/functions/deno.json supabase/functions/*/index.ts
+      - run: npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output /tmp/bondcheck.android.bundle --max-workers 2
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start
+      - run: supabase test db
+      - run: supabase stop
+        if: always()

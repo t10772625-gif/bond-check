@@ -5,6 +5,7 @@ import { Btn, DateInput, H2, Input, Label, Note, Row, Select, Seg, Txt } from '.
 import { AddMode, useApp } from '../store/AppStore';
 import { useTheme } from '../theme';
 import { DEN, fmt, genRange } from '../utils';
+import { CsvImport } from '../cloud/CsvImport';
 
 const denOptions = DEN.map(d => ({ value: d, label: fmt(d) }));
 
@@ -37,6 +38,7 @@ export default function AddScreen() {
   return (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 8, paddingBottom: 48 }}>
       <H2>Add Bonds</H2>
+      <CsvImport />
 
       {staged ? (
         <Pressable
@@ -79,8 +81,10 @@ export default function AddScreen() {
       />
       <Label>Denomination</Label>
       <Select value={f.den} options={denOptions} onChange={den => setAddForm({ den })} />
-      <Label>Purchase / renewal date (optional)</Label>
-      <DateInput value={f.dt} onChange={dt => setAddForm({ dt })} placeholder="Date unknown" />
+      <Note>Enter exactly six digits. Series letters are optional and ignored when matching official draws. Leading zeros are preserved.</Note>
+      <Label>Purchase date (required)</Label>
+      <DateInput value={f.dt} onChange={dt => setAddForm({ dt })} placeholder="When you bought these bonds" />
+      <Note>Only draws after this date count as your wins. Earlier and same-day draws are excluded.</Note>
       <Label>Holder (optional)</Label>
       <Input value={f.holder} onChangeText={holder => setAddForm({ holder })} placeholder="Whose bond is this?" />
       <Label>Note / location (optional)</Label>

@@ -1,0 +1,9 @@
+.verification/
+.npm-cache/
+.gradle-user/
+.gradle-project/
+android/
+ios/
+supabase/
+automation/
+scripts/

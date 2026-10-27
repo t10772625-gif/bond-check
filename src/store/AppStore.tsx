@@ -12,6 +12,7 @@ import { base64 } from '../export/bytes';
 import { buildXlsx } from '../export/xlsx';
 import { buildPdf } from '../export/pdf';
 import { BioType, bioClear, bioLoad, bioSave, bioType } from './bio';
+import { useAutomation } from '../cloud/useAutomation';
 
 const KEY = 'bondcheck.v4';
 const PREFS_KEY = 'bondcheck.prefs';
@@ -108,6 +109,9 @@ export const validLoginId = (s: string) => {
 export type StagedState = 'ok' | 'invalid' | 'exists' | 'dup';
 
 function useAppState() {
+  const automation = useAutomation();
+  const legacyRef = useRef<DB | null>(null);
+  const projectedOwner = useRef<string | null>(null);
   const dbRef = useRef<DB>(seed());
   const sesRef = useRef<{ U: User | null; curCode: string | null }>({ U: null, curCode: null });
   const [ver, setVer] = useState(0);
@@ -175,15 +179,48 @@ function useAppState() {
         }
       })
       .catch(() => {})
-      .finally(() => setLoaded(true));
+      .finally(() => {
+        legacyRef.current = JSON.parse(JSON.stringify(dbRef.current));
+        setLoaded(true);
+      });
   }, []);
+
+  useEffect(() => {
+    const snapshot = automation.snapshot;
+    const user = automation.session?.user;
+    if (!automation.configured || !snapshot || !user || !loaded) return;
+    const code = 'CLOUD-' + user.id;
+    const account: User = { id: user.email || user.id, name: user.user_metadata?.name || 'Abbu', pw: '', own: code, ws: [code] };
+    dbRef.current = {
+      ...dbRef.current, users: [account], sess: account.id,
+      groups: { [code]: { name: 'My bonds', personal: true, bonds: snapshot.bonds, trash: snapshot.trash,
+        members: [{ id: account.id, name: account.name, role: 'Owner' }] } },
+      DRAWS: snapshot.draws.map(draw => ({ no: draw.draw_no || 0, den: draw.denomination, date: draw.draw_date, city: '', w: {} })),
+    };
+    sesRef.current = { U: account, curCode: code };
+    if (projectedOwner.current !== user.id) {
+      projectedOwner.current = user.id;
+      setPhase('app');
+      setTab('home');
+    }
+    refresh();
+  }, [automation.snapshot, automation.session?.user.id, automation.configured, loaded, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (automation.configured && automation.loaded && !automation.session) {
+      sesRef.current = { U: null, curCode: null };
+      projectedOwner.current = null;
+      setSheetRaw(null); setPreviewOpen(false); setDialog(null); setPhase('auth'); refresh();
+    }
+  }, [automation.configured, automation.loaded, automation.session?.user.id, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const writeNow = useCallback(() => {
+    if (automation.configured) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = null;
     AsyncStorage.setItem(KEY, JSON.stringify(dbRef.current)).catch(() => {});
-  }, []);
+  }, [automation.configured]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -243,6 +280,11 @@ function useAppState() {
     setToastState({ id: Date.now() + Math.random(), text, action, fn });
   }, []);
 
+  const cloudTask = async (task: () => Promise<unknown>, message: string, after?: () => void) => {
+    try { await task(); await automation.reload(); after?.(); toast(message); }
+    catch (failure) { toast((failure as Error).message); }
+  };
+
   /* ---------- sheets ---------- */
   const setSheet = useCallback((s: SheetState) => {
     sheetDirty.current = false;
@@ -276,13 +318,14 @@ function useAppState() {
     }
     return false;
   };
-  const amt = (b: Bond, w: Win) => +((db.PRIZE[b.d] || {})[w.rank] || 0) || 0;
+  const amt = (b: Bond, w: Win) => w.amount ?? (+((db.PRIZE[b.d] || {})[w.rank] || 0) || 0);
   const rate = () => (db.filer ? 0.85 : 0.65);
-  const pend = (b: Bond) => b.st === 'active' && b.wins.some(w => w.date > (b.date || ''));
-  const lastW = (b: Bond) => b.wins[b.wins.length - 1];
+  const pend = (b: Bond) => b.st === 'active' && b.wins.some(w => !w.provisional && (automation.configured ? !w.claim : w.date > (b.date || '')));
+  const lastW = (b: Bond) => b.wins.filter(w => !w.provisional).slice(-1)[0] || b.wins[b.wins.length - 1];
   const badge = (b: Bond): [string, BadgeKind] => {
     if (b.st !== 'active') return ['Archived', ''];
     if (pend(b)) return ['🎉 Won · ' + lastW(b).rank, 'w'];
+    if (b.wins.some(w => w.provisional)) return ['Possible win — verify', 'n'];
     if (b.wins.length) return ['Renewed · ' + b.wins.length + ' win' + (b.wins.length > 1 ? 's' : ''), 'g'];
     return ['Active', ''];
   };
@@ -292,7 +335,7 @@ function useAppState() {
     const A = B();
     const act = A.filter(b => b.st === 'active');
     const W: WinRow[] = [];
-    A.forEach(b => b.wins.forEach((w, i) => W.push({ b, w, i, a: amt(b, w) })));
+    A.forEach(b => b.wins.forEach((w, i) => { if (!w.provisional) W.push({ b, w, i, a: amt(b, w) }); }));
     W.sort((x, y) => y.w.date.localeCompare(x.w.date));
     const gross = W.reduce((s, x) => s + x.a, 0);
     const got = W.filter(x => x.w.claim);
@@ -302,6 +345,7 @@ function useAppState() {
       o.c++;
       o.v += b.d;
       b.wins.forEach(w => {
+        if (w.provisional) return;
         o.w++;
         o.p += amt(b, w);
       });
@@ -315,7 +359,7 @@ function useAppState() {
       bought: A.length,
       boughtVal: A.reduce((s, b) => s + b.d, 0),
       heldVal: act.reduce((s, b) => s + b.d, 0),
-      uniq: A.filter(b => b.wins.length).length,
+      uniq: A.filter(b => b.wins.some(w => !w.provisional)).length,
     };
   };
 
@@ -504,6 +548,7 @@ function useAppState() {
   };
 
   const doLogout = () => {
+    if (automation.configured) return void automation.signOut();
     setSheet(null);
     dbRef.current.sess = null;
     refresh();
@@ -600,6 +645,10 @@ function useAppState() {
     if (gate()) return;
     const b = findBond(id);
     if (!b) return;
+    if (automation.configured && b.wins[i]?.provisional && data) return toast('Verify this possible win before recording a claim');
+    if (automation.configured) return void cloudTask(() => automation.api.rpc('mark_win', {
+      p_id: b.wins[i].cloudId, p_claim_date: data ? data.date || today() : null, p_received: data?.rcv ?? null,
+    }), 'Claim saved');
     b.wins[i].claim = data ? { date: data.date || today(), rcv: data.rcv || 0 } : null;
     refresh();
     toast(data ? 'Claim saved' : 'Claim cleared');
@@ -611,6 +660,7 @@ function useAppState() {
     const b = findBond(id);
     if (!b) return;
     const d = date || today();
+    if (automation.configured) return void cloudTask(() => automation.repository.update(b, { date: d }), 'Date saved', () => setSheet(null));
     b.date = d;
     refresh();
     toast(b.n + ' renewed: ' + fd(d));
@@ -622,6 +672,7 @@ function useAppState() {
     const b = findBond(id);
     if (!b) return;
     const n = norm(f.n);
+    if (automation.configured) return void cloudTask(() => automation.repository.update(b, { ...f, n }), 'Changes saved', () => setSheet(null));
     if (!split(n)) return toast('Invalid number format');
     if (B().some(x => x.n === n && x.id !== id)) return toast(n + ' is already added');
     Object.assign(b, { n, d: f.d, date: f.date, holder: f.holder.trim(), series: f.series, note: f.note.trim() });
@@ -634,6 +685,7 @@ function useAppState() {
     if (gate()) return;
     const b = findBond(id);
     if (!b) return;
+    if (automation.configured) return void cloudTask(() => automation.repository.update(b, { archived: b.st === 'active' }), 'Bond status saved', () => setSheet(null));
     b.st = b.st === 'active' ? 'archived' : 'active';
     refresh();
     toast(b.st === 'active' ? 'Bond restored' : 'Moved to Archived');
@@ -645,6 +697,7 @@ function useAppState() {
     if (!w) return;
     const b = w.trash.find(x => x.id === id);
     if (!b) return;
+    if (automation.configured) return void cloudTask(() => automation.repository.update(b, { deleted_at: null }), 'Bond restored');
     if (w.bonds.some(x => x.n === b.n)) return toast(b.n + ' already exists');
     w.trash = w.trash.filter(x => x.id !== id);
     w.bonds.push(b);
@@ -656,6 +709,7 @@ function useAppState() {
     if (gate() || !cur) return;
     const b = findBond(id);
     if (!b) return;
+    if (automation.configured) return void cloudTask(() => automation.repository.remove(b), 'Bond moved to trash', () => setSheet(null));
     cur.bonds = cur.bonds.filter(x => x.id !== id);
     cur.trash.unshift(b);
     setSheet(null);
@@ -664,6 +718,7 @@ function useAppState() {
   };
 
   const emptyTrash = () => {
+    if (automation.configured) return void cloudTask(() => automation.api.request('/rest/v1/bonds?deleted_at=not.is.null', { method: 'DELETE' }), 'Trash emptied');
     if (!cur) return;
     cur.trash = [];
     refresh();
@@ -677,8 +732,11 @@ function useAppState() {
   const addSingle = () => {
     if (gate() || !cur || !U) return;
     const n = norm(addForm.single);
+    if (automation.configured) return void cloudTask(() => automation.repository.add([{
+      n, d: addForm.den, date: addForm.dt, holder: addForm.holder, note: addForm.note,
+    }]), 'Bond saved and checked against stored history', () => setAddForm({ single: '' }));
     if (!split(n)) return toast('Invalid number format');
-    if (B().some(b => b.n === n)) return toast(n + ' is already added');
+    if (B().some(b => b.n === n && b.d === addForm.den)) return toast(n + ' is already added');
     const x = inputFromForm();
     cur.bonds.push(makeBond(dbRef.current, n, x.den, x.date, { holder: x.holder.trim(), note: x.note.trim(), by: U.name }));
     setAddForm({ single: '' });
@@ -699,7 +757,7 @@ function useAppState() {
     if (addForm.mode === 'range') {
       const r = genRange(addForm.ra, addForm.rb);
       if (!r) return toast('Invalid range (same prefix, max 2,000)');
-      const existing = new Set(B().map(b => b.n));
+      const existing = new Set(B().filter(b => b.d === addForm.den).map(b => b.n));
       const st = toStaged(r, 'range', '');
       st.items.forEach(it => existing.has(it.n) && (it.on = false));
       setStaged(st);
@@ -707,7 +765,7 @@ function useAppState() {
       const t = addForm.bulk.split(/[\s,;]+/).map(norm).filter(Boolean);
       const u = [...new Set(t)];
       if (!u.length) return toast('Paste at least one number');
-      const existing = new Set(B().map(b => b.n));
+      const existing = new Set(B().filter(b => b.d === addForm.den).map(b => b.n));
       const st = toStaged(u, 'bulk', t.length - u.length ? `${t.length - u.length} duplicates merged` : '');
       st.items.forEach(it => existing.has(it.n) && (it.on = false));
       setStaged(st);
@@ -722,7 +780,7 @@ function useAppState() {
 
   /** Classify each staged number: ok / invalid format / already in workspace / repeated in the list. */
   const stagedStates = (items: StagedItem[]): StagedState[] => {
-    const existing = new Set(B().map(b => b.n));
+    const existing = new Set(B().filter(b => b.d === addForm.den).map(b => b.n));
     const seen = new Set<string>();
     return items.map(it => {
       if (!split(it.n)) return 'invalid';
@@ -740,6 +798,11 @@ function useAppState() {
     const x = inputFromForm();
     const list = staged.items.filter((it, i) => it.on && states[i] === 'ok').map(it => it.n);
     if (!list.length) return toast('No valid new numbers selected');
+    if (automation.configured) return void cloudTask(() => automation.repository.add(list.map(n => ({
+      n, d: x.den, date: x.date, holder: x.holder, note: x.note,
+    }))), `${list.length} bonds saved and checked against stored history`, () => {
+      setStaged(null); setPreviewOpen(false); setTab('home'); setFlt('all'); setQ('');
+    });
     list.forEach(n => cur.bonds.push(makeBond(dbRef.current, n, x.den, x.date, { holder: x.holder.trim(), note: x.note.trim(), by: U.name })));
     setStaged(null);
     setPreviewOpen(false);
@@ -752,6 +815,7 @@ function useAppState() {
 
   /* ---------- draws ---------- */
   const saveDraw = (f: ImportDraft) => {
+    if (automation.configured) return toast('Upload the complete official result file from the draw status board.');
     const d = dbRef.current;
     const no = +f.no || 0;
     if (!no || !f.date) return toast('Draw number and date are required');
@@ -770,6 +834,7 @@ function useAppState() {
   };
 
   const doCheck = (dr: Draw) => {
+    if (automation.configured) return void cloudTask(() => automation.run(), 'Check queued; progress is shown on the status board');
     if (gate()) return;
     let ns: string[] | null = null;
     if (cm === 'list') ns = nums(c1);
@@ -834,6 +899,7 @@ function useAppState() {
     refresh();
   };
   const resetAll = () => {
+    if (automation.configured) return toast('Prototype reset is unavailable while the cloud database is active.');
     confirm({
       icon: '⚠️',
       title: 'Reset all data?',
@@ -1010,6 +1076,7 @@ function useAppState() {
   };
 
   const restoreBackup = (text: string) => {
+    if (automation.configured) return toast('Use the cloud import preview. Local backup restoration cannot overwrite server results.');
     if (gate() || !cur) return;
     try {
       const parsed = JSON.parse(text);
@@ -1074,7 +1141,7 @@ function useAppState() {
   const enterRef = useRef(enter);
   enterRef.current = enter;
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || automation.configured) return;
     const t = setTimeout(() => {
       const d = dbRef.current;
       const u = d.users.find(x => x.id === d.sess);
@@ -1083,9 +1150,10 @@ function useAppState() {
       else setPhase('auth');
     }, 2400);
     return () => clearTimeout(t);
-  }, [loaded]);
+  }, [loaded, automation.configured]);
 
   return {
+    automation, legacyDb: legacyRef.current,
     ver, db, U, cur, curCode,
     phase, am, setAm, loadingInfo,
     tab, setTab, flt, setFlt, q, setQ, sheet, setSheet, requestCloseSheet, markDirty, big, setBig, dialog, setDialog, confirm,
