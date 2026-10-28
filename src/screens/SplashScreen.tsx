@@ -7,13 +7,15 @@ import { useApp } from '../store/AppStore';
 function useAnim(delay: number, duration = 600) {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(v, {
+    const animation = Animated.timing(v, {
       toValue: 1,
       duration,
       delay,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start();
+    });
+    animation.start();
+    return () => animation.stop();
   }, [v, delay, duration]);
   return v;
 }
@@ -54,13 +56,15 @@ export function Logo({
 }) {
   const v = useRef(new Animated.Value(animated ? 0 : 1)).current;
   useEffect(() => {
-    if (animated)
-      Animated.spring(v, {
+    if (!animated) return;
+    const animation = Animated.spring(v, {
         toValue: 1,
         friction: 5,
         tension: 60,
         useNativeDriver: true,
-      }).start();
+      });
+    animation.start();
+    return () => animation.stop();
   }, [v, animated]);
   return (
     <Animated.View
@@ -96,12 +100,14 @@ export default function SplashScreen() {
   const { automation } = useApp();
   const bar = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(bar, {
+    const animation = Animated.timing(bar, {
       toValue: 1,
       duration: 2100,
       easing: Easing.out(Easing.quad),
       useNativeDriver: false,
-    }).start();
+    });
+    animation.start();
+    return () => animation.stop();
   }, [bar]);
   return (
     <View style={[styles.full, { backgroundColor: c.splash }]}>

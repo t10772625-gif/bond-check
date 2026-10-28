@@ -18,6 +18,7 @@ insert into auth.users(id,email) values
  ('00000000-0000-0000-0000-000000000001','owner@bondcheck.test'),
  ('00000000-0000-0000-0000-000000000002','other@bondcheck.test');
 insert into public.app_owners(user_id) values('00000000-0000-0000-0000-000000000001');
+insert into public.result_admins(user_id) values('00000000-0000-0000-0000-000000000001');
 insert into public.draws(id,denomination,draw_date,draw_no,status) values
  ('10000000-0000-0000-0000-000000000001',750,'2000-01-15',81,'ok_manual');
 insert into public.draw_numbers(draw_id,number,tier) values

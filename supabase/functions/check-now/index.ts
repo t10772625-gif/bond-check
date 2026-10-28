@@ -6,6 +6,8 @@ serve(async (request, context) => {
   const { action = 'check' } = await body(request);
   if (!['check', 'backfill', 'reconcile', 'retry'].includes(action))
     throw new Error('Unknown check action');
+  if (action !== 'check' && !(await context.userDb.rpc('is_result_admin')))
+    throw Object.assign(new Error('Result administrator access required'), { status: 403 });
   const worker = pipeline();
   if (action === 'retry')
     await admin().update('draw_files', { device_fetch_attempts: 'gt.0' }, { device_fetch_attempts: 0, device_retry_at: null });

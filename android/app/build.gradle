@@ -83,8 +83,8 @@ android {
         applicationId "com.bondcheck"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 9
-        versionName "1.7.1"
+        versionCode 16
+        versionName "1.8.6"
     }
     signingConfigs {
         debug {
@@ -116,5 +116,18 @@ dependencies {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
+    }
+}
+
+// Keep the APK next to App.tsx after every successful release build.
+afterEvaluate {
+    tasks.named("assembleRelease").configure {
+        doLast {
+            copy {
+                from(layout.buildDirectory.file("outputs/apk/release/app-release.apk"))
+                into(rootProject.projectDir.parentFile)
+                rename { "BondCheck-v${android.defaultConfig.versionName}.apk" }
+            }
+        }
     }
 }

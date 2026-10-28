@@ -23,14 +23,14 @@ export class Database {
       data = null;
     }
     if (!response.ok)
-      throw new Error(
+      throw Object.assign(new Error(
         `Supabase HTTP ${response.status}: ${
           data?.message ??
           data?.error_description ??
           data?.error ??
           'request failed'
         }`,
-      );
+      ), { status: response.status, code: data?.code });
     return data;
   }
   async select(table, query = {}, { all = false } = {}) {

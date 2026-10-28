@@ -1,19 +1,20 @@
-import React, { useState } from 'react';
-import { Modal, ScrollView } from 'react-native';
-import { Btn, H2, Input, Note, Res } from '../components/ui';
+import React, { useRef, useState } from 'react';
+import { ScrollView } from 'react-native';
+import { Btn, FullModal, Input, Note, Res } from '../components/ui';
 import { useApp } from '../store/AppStore';
 import { previewCsv } from './csv';
 
 export function CsvImport() {
-  const { automation, B, toast } = useApp();
+  const { automation, B, toast, setTab, setAllBondsOpen } = useApp();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
   let preview: ReturnType<typeof previewCsv> | null = null;
   let error = '';
   if (text.trim()) {
     try {
-      preview = previewCsv(text, B());
+      preview = previewCsv(text, [...B(), ...(automation.snapshot?.trash ?? [])]);
     } catch (failure) {
       error = (failure as Error).message;
     }
@@ -22,20 +23,18 @@ export function CsvImport() {
   return (
     <>
       <Btn variant="alt" title="Import CSV" onPress={() => setOpen(true)} />
-      <Modal
+      <FullModal
         visible={open}
-        onRequestClose={() => setOpen(false)}
-        animationType="slide"
+        onClose={() => { if (!saving.current) setOpen(false); }}
+        title="Import bonds from CSV"
       >
         <ScrollView
           contentContainerStyle={{
             padding: 24,
-            paddingTop: 48,
             paddingBottom: 48,
           }}
           keyboardShouldPersistTaps="handled"
         >
-          <H2>Import bonds from CSV</H2>
           <Note>
             Paste the original text. Required headers:
             number,denomination,purchased_on. Optional: series,holder,note. Keep
@@ -60,15 +59,21 @@ export function CsvImport() {
                 >{`Row ${row.row}: ${row.reason}`}</Res>
               ))}
               <Btn
+                disabled={busy || !!preview.invalid.length || !preview.valid.length}
                 title={
-                  busy ? 'Saving…' : `Save ${preview.valid.length} valid bonds`
+                  busy ? 'Saving…' : preview.invalid.length ? 'Fix invalid rows before saving' : `Save ${preview.valid.length} valid bonds`
                 }
                 onPress={async () => {
-                  if (busy || !preview?.valid.length) return;
+                  if (saving.current || !preview?.valid.length || preview.invalid.length) return;
+                  saving.current = true;
                   setBusy(true);
+                  const owner = automation.api.session?.user.id;
                   try {
                     await automation.repository.add(preview.valid);
-                    await automation.reload();
+                    if (automation.api.session?.user.id !== owner) return;
+                    await automation.reload(true);
+                    if (automation.api.session?.user.id !== owner) return;
+                    setTab('home'); setAllBondsOpen(true);
                     if (!preview.invalid.length) {
                       setOpen(false);
                       setText('');
@@ -81,15 +86,16 @@ export function CsvImport() {
                   } catch (failure) {
                     toast((failure as Error).message);
                   } finally {
+                    saving.current = false;
                     setBusy(false);
                   }
                 }}
               />
             </>
           ) : null}
-          <Btn variant="alt" title="Cancel" onPress={() => setOpen(false)} />
+          <Btn variant="alt" title="Cancel" disabled={busy} onPress={() => setOpen(false)} />
         </ScrollView>
-      </Modal>
+      </FullModal>
     </>
   );
 }

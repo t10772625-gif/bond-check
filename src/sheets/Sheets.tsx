@@ -20,7 +20,7 @@ import { useApp } from '../store/AppStore';
 import { WorkspaceRows } from '../screens/SettingsScreen';
 import { fonts, useTheme } from '../theme';
 import type { Bond, SheetState } from '../types';
-import { DEN, fd, fmt, today } from '../utils';
+import { DEN, fd, fmt, today, split } from '../utils';
 import type { ImportDraft } from '../store/AppStore';
 
 const denOptions = DEN.map(d => ({ value: d, label: fmt(d) }));
@@ -71,11 +71,11 @@ function BondView({ b }: { b: Bond }) {
       <Badge text={st} kind={k} />
       <View style={{ height: 6 }} />
       <KV k="Denomination" v={fmt(b.d)} />
-      <KV k="Purchase / renewal date" v={fd(b.date)} />
+      <KV k={automation.configured ? 'Purchase date' : 'Purchase / renewal date'} v={fd(b.date)} />
       <KV k="Holder" v={b.holder || '—'} />
       <KV k="Series" v={b.series || '—'} />
       <KV k="Note / location" v={b.note || '—'} />
-      <KV k="Added by" v={b.by || '—'} />
+      {!automation.configured ? <KV k="Added by" v={b.by || '—'} /> : null}
       <Txt
         style={{
           fontFamily: fonts.serif,
@@ -169,7 +169,7 @@ function BondView({ b }: { b: Bond }) {
 
 /* ---------- Bond sheet: claim ---------- */
 function BondClaim({ b, wi }: { b: Bond; wi: number }) {
-  const { amt, rate, saveClaim, setSheet, automation } = useApp();
+  const { amt, rate, saveClaim, setSheet, automation, toast } = useApp();
   const w = b.wins[wi];
   const net = Math.round(amt(b, w) * rate());
   const [date, setDate] = useField(w.claim ? w.claim.date : today());
@@ -192,7 +192,13 @@ function BondClaim({ b, wi }: { b: Bond; wi: number }) {
       <Input value={rcv} onChangeText={setRcv} keyboardType="number-pad" />
       <Btn
         title="Save claim"
-        onPress={() => saveClaim(b.id, wi, { date, rcv: +rcv || 0 })}
+        onPress={() => {
+          if (!rcv.trim() || !Number.isSafeInteger(Number(rcv)) || Number(rcv) < 0)
+            return toast('Enter the amount actually received as a whole, non-negative number.');
+          if (!date || date < w.date || date > today())
+            return toast('Claim date must be between the draw date and today.');
+          saveClaim(b.id, wi, { date, rcv: Number(rcv) });
+        }}
       />
       {w.claim ? (
         <Btn
@@ -236,8 +242,8 @@ function BondRenew({ b }: { b: Bond }) {
 
 /* ---------- Bond sheet: edit ---------- */
 function BondEdit({ b }: { b: Bond }) {
-  const { saveEdit, setSheet } = useApp();
-  const [n, setN] = useField(b.n);
+  const { saveEdit, setSheet, automation } = useApp();
+  const [n, setN] = useField(automation.configured ? split(b.n)?.d ?? b.n : b.n);
   const [d, setD] = useField(b.d);
   const [date, setDate] = useField(b.date || '');
   const [holder, setHolder] = useField(b.holder || '');
@@ -250,8 +256,8 @@ function BondEdit({ b }: { b: Bond }) {
       <Input value={n} onChangeText={setN} upper mono autoCorrect={false} />
       <Label>Denomination</Label>
       <Select value={d} options={denOptions} onChange={setD} />
-      <Label>Purchase / renewal date (empty if unknown)</Label>
-      <DateInput value={date} onChange={setDate} placeholder="Date unknown" />
+      <Label>{automation.configured ? 'Purchase date (required)' : 'Purchase / renewal date (empty if unknown)'}</Label>
+      <DateInput value={date} onChange={setDate} allowEmpty={!automation.configured} placeholder="When you bought this bond" />
       <Label>Holder</Label>
       <Input
         value={holder}
@@ -427,6 +433,7 @@ function ExportSheet() {
     exportPdf,
     cur,
     setSheet,
+    automation,
   } = useApp();
   const { c } = useTheme();
   const [txt, setTxt] = useField('');
@@ -457,7 +464,7 @@ function ExportSheet() {
           onPress={() => shareText(statementCsv(), 'Bond Check statement')}
         />
       </Row>
-      <View
+      {!automation.configured ? <><View
         style={{ height: 1, backgroundColor: c.line, marginVertical: 10 }}
       />
       <Label>Full backup (JSON)</Label>
@@ -496,6 +503,7 @@ function ExportSheet() {
         are replaced.
       </Note>
       <Btn title="Restore" onPress={() => restoreBackup(txt)} />
+      </> : <Note>Use Settings for your full cloud backup and bond restore.</Note>}
       <Btn variant="alt" title="Close" onPress={() => setSheet(null)} />
     </>
   );

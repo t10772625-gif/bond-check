@@ -15,7 +15,7 @@ test('device-downloaded bytes are parsed on the server without fetching the bloc
   const pipeline = new Pipeline(db, { fetchImpl: () => { throw new Error('Origin must not be contacted'); } });
   const result = await pipeline.candidate({
     id: 'file', kind: 'txt', url: 'https://savings.gov.pk/a.txt',
-    storage_path: 'stored/result.txt', sha256: 'digest', device_fetched_at: '2026-10-27T07:00:00Z',
+    storage_path: 'stored/result.txt', sha256: 'digest', device_fetched_at: new Date().toISOString(),
   }, { denomination: 750, draw_date: '2026-10-15' }, []);
   assert.equal(downloaded, 1);
   assert.ok(result.result.parsed.first.includes('007447'));
@@ -25,7 +25,7 @@ test('device-downloaded bytes are parsed on the server without fetching the bloc
 test('HTML received by the device cannot be ingested as winning numbers', async () => {
   const pipeline = new Pipeline({ download: async () => new TextEncoder().encode('<html>Service unavailable</html>') });
   await assert.rejects(pipeline.candidate({
-    kind: 'txt', device_fetched_at: 'now', storage_path: 'result', url: 'https://savings.gov.pk/a.txt',
+    kind: 'txt', device_fetched_at: new Date().toISOString(), storage_path: 'result', url: 'https://savings.gov.pk/a.txt',
   }, { denomination: 750, draw_date: '2026-10-15' }, []), /HTML/);
 });
 

@@ -89,4 +89,4 @@ serve(async (request, context) => {
     { last_device_sync: new Date().toISOString() },
   );
   return { ok: true, draw_id: draw.id, file_id: file.id };
-});
+}, false, true);

@@ -21,7 +21,6 @@ import {
   Res,
   Row,
   SearchBar,
-  Seg,
   Select,
   Txt,
   matches,
@@ -32,9 +31,8 @@ import { base64, utf8 } from '../export/bytes';
 import { migrationPreview, SUPPORTED_DENOMINATIONS } from './migration';
 import type { CloudDraw } from './types';
 import { BackupRestore } from './BackupRestore';
-import { AuthShell, PasswordInput, Rules } from '../screens/AuthScreen';
-import { Logo } from '../screens/SplashScreen';
-import { SummaryBlock } from '../screens/SettingsScreen';
+import { CloudTrash } from './CloudTrash';
+import { useTheme } from '../theme';
 
 const isOfficial = (url: string) =>
   /^https:\/\/(www\.)?savings\.gov\.pk\//i.test(url);
@@ -49,8 +47,10 @@ function openOfficial(url: string) {
 }
 function Page({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
+  const { c } = useTheme();
   return (
     <ScrollView
+      style={{ flex: 1, backgroundColor: c.bg }}
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{
         padding: 16,
@@ -63,148 +63,7 @@ function Page({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function CloudLoginScreen() {
-  const { automation, toast } = useApp();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmation, setConfirmation] = useState('');
-  const [notice, setNotice] = useState('');
-  const [forgot, setForgot] = useState(false);
-  const signup = mode === 'signup';
-  if (forgot)
-    return (
-      <AuthShell>
-        <Logo size={60} animated={false} />
-        <H2>Forgot password?</H2>
-        <Note>
-          Cloud passwords need secure email recovery. Contact the account owner
-          to reset your password; the old phone-only password reset cannot
-          change this account.
-        </Note>
-        <Btn title="Back to log in" onPress={() => setForgot(false)} />
-      </AuthShell>
-    );
-  const submit = async () => {
-    if (automation.busy) return;
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()))
-      return toast('Enter your account email');
-    if (!password) return toast('Enter your password');
-    if (!signup) return automation.signIn(email, password);
-    if (!name.trim()) return toast('Enter your full name');
-    if (password.length < 6 || password !== confirmation)
-      return toast('Use at least six characters and matching passwords');
-    try {
-      const result = await automation.signUp(name, email, password);
-      setNotice(
-        result.confirmationRequired
-          ? 'Check your email to confirm the account, then log in. The private owner account must be enrolled before bonds are available.'
-          : 'Account created. Log in after the private owner account has been enrolled.',
-      );
-      setPassword('');
-      setConfirmation('');
-      setMode('login');
-    } catch {
-      /* The authentication error is shown below. */
-    }
-  };
-  return (
-    <AuthShell>
-      <View style={{ alignItems: 'center' }}>
-        <Logo size={60} animated={false} />
-        <H2 style={{ marginTop: 12, marginBottom: 0, textAlign: 'center' }}>
-          {signup ? 'Create your account' : 'Welcome back'}
-        </H2>
-        <Note style={{ marginBottom: 10, textAlign: 'center' }}>
-          {signup
-            ? 'Your private prize-bond account'
-            : 'Log in to your account'}
-        </Note>
-      </View>
-      <Seg
-        options={[
-          ['login', 'Log in'],
-          ['signup', 'Sign up'],
-        ]}
-        value={mode}
-        onChange={value => {
-          setMode(value);
-          setConfirmation('');
-          setNotice('');
-        }}
-      />
-      {automation.error ? <Res kind="r">{automation.error}</Res> : null}
-      {notice ? <Res kind="y">{notice}</Res> : null}
-      {signup ? (
-        <>
-          <Label>Full name</Label>
-          <Input
-            value={name}
-            onChangeText={setName}
-            placeholder="Your name"
-            autoCapitalize="words"
-          />
-        </>
-      ) : null}
-      <Label>Email</Label>
-      <Input
-        value={email}
-        onChangeText={setEmail}
-        placeholder="Your account email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoCorrect={false}
-      />
-      <Label>Password</Label>
-      <PasswordInput value={password} onChange={setPassword} />
-      {signup ? (
-        <>
-          <Label>Confirm password</Label>
-          <PasswordInput
-            value={confirmation}
-            onChange={setConfirmation}
-            placeholder="Type it again"
-          />
-          <Rules pw={password} pw2={confirmation} />
-        </>
-      ) : (
-        <Btn
-          sm
-          variant="alt"
-          title="Forgot password?"
-          onPress={() => setForgot(true)}
-        />
-      )}
-      <Btn
-        title={
-          automation.busy ? 'Working…' : signup ? 'Create account' : 'Log in'
-        }
-        onPress={submit}
-      />
-      {automation.session ? (
-        <>
-          <Btn
-            variant="alt"
-            title="Retry connection"
-            onPress={() =>
-              automation.reload().catch(error => toast(error.message))
-            }
-          />
-          <Btn
-            variant="alt"
-            title="Sign out"
-            onPress={() => automation.signOut()}
-          />
-        </>
-      ) : null}
-      <Note style={{ textAlign: 'center', marginTop: 14 }}>
-        Accounts are created privately for this bond collection. Registration
-        alone does not grant access to private bonds.
-      </Note>
-    </AuthShell>
-  );
-}
+export { CloudLoginScreen } from './CloudAuthScreen';
 
 export function AutomationStatus() {
   const { automation } = useApp();
@@ -219,6 +78,7 @@ export function AutomationStatus() {
   if (!status) return <Res kind="y">Loading the draw status…</Res>;
   return (
     <View>
+      {automation.authNotice ? <Note>{automation.authNotice}</Note> : null}
       <Res kind={automation.complete ? 'g' : 'y'}>
         {`${status.verified} of ${status.total} known draws verified · ${status.pending_jobs} jobs pending${
           automation.complete
@@ -713,7 +573,7 @@ export function DrawStatusScreen() {
                     }
                   />
                 ))}
-              {!verified ? (
+              {!verified && automation.snapshot?.status.can_manage_results ? (
                 <Row>
                   <Btn
                     sm
@@ -742,11 +602,13 @@ export function DrawStatusScreen() {
 
 function MigrationPanel() {
   const { automation, legacyDb, toast } = useApp();
-  const options = Object.entries(legacyDb?.groups ?? {}).map(
+  const legacyUser = legacyDb?.users.find(user => user.id.toLowerCase() === automation.session?.user.email?.toLowerCase());
+  const options = Object.entries(legacyDb?.groups ?? {}).filter(([code]) => legacyUser?.ws.includes(code)).map(
     ([value, workspace]) => ({ value, label: workspace.name }),
   );
   const [workspace, setWorkspace] = useState(options[0]?.value ?? '');
   const [backupReady, setBackupReady] = useState(false);
+  const [migrationOpen, setMigrationOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const preview = useMemo(
     () =>
@@ -793,9 +655,12 @@ function MigrationPanel() {
       setBusy(false);
     }
   };
+  if (!options.length) return null;
+  if (!migrationOpen) return <Btn variant="alt" title="Import previous local bonds" onPress={() => setMigrationOpen(true)} />;
   return (
     <View>
       <H2>Upload old data</H2>
+      <Btn variant="alt" title="Close local import" onPress={() => setMigrationOpen(false)} />
       <Note>
         Select a local workspace. Review invalid rows and duplicates before
         uploading. Demo workspaces are included only if you select them.
@@ -878,44 +743,45 @@ function MigrationPanel() {
 }
 
 export function CloudSettingsScreen() {
-  const { automation, toast, big, setBig, setTab } = useApp();
+  const { automation, toast, big, setBig, setSheet } = useApp();
   const heartbeat = automation.snapshot?.status.heartbeat;
+  const [trashOpen, setTrashOpen] = useState(false);
   return (
     <Page>
       <H2>Settings</H2>
-      <SummaryBlock onWins={() => setTab('results')} />
+      <Row><View style={{ flex: 1 }}><Label>Fingerprint unlock</Label><Note>{automation.biometrics.enabled ? 'Locks when you leave the app.' : 'Use your phone fingerprint when reopening the app.'}</Note></View><Switch accessibilityLabel="Fingerprint unlock" value={automation.biometrics.enabled} disabled={automation.biometrics.busy} onValueChange={value => { void automation.biometrics.changeEnabled(value); }} /></Row>
+      {automation.biometrics.error ? <Res kind="y">{automation.biometrics.error}</Res> : null}
       <AutomationStatus />
       <Note>{`Signed in: ${automation.session?.user.email ?? ''}`}</Note>
-      <Note>{`Last heartbeat: ${heartbeat?.last_beat ?? 'Not received'}`}</Note>
       <Note>{`Last successful discovery: ${
-        heartbeat?.last_discovery_ok ?? 'Never'
+        heartbeat?.last_discovery_ok ? new Date(heartbeat.last_discovery_ok).toLocaleString() : 'Not yet'
       }`}</Note>
       <Note>{`Last result ingestion: ${
-        heartbeat?.last_ingest_ok ?? 'Never'
+        heartbeat?.last_ingest_ok ? new Date(heartbeat.last_ingest_ok).toLocaleString() : 'Not yet'
       }`}</Note>
-      <Note>Parser v2 · Bond Check automation v1</Note>
       <Note>
         Only draws strictly after the entered purchase date are eligible. Older
         matches are not counted as your wins.
       </Note>
       <Btn
-        title="Run check now"
+        title={automation.busy ? 'Checking…' : 'Run check now'}
+        disabled={automation.busy}
         onPress={() => automation.run().catch(error => toast(error.message))}
       />
-      <Btn
+      {automation.snapshot?.status.can_manage_results ? <Btn
         variant="alt"
-        title="Run full historical backfill"
+        title="Retry unresolved historical draws"
         onPress={() =>
           automation.run('backfill').catch(error => toast(error.message))
         }
-      />
-      <Btn
+      /> : null}
+      {automation.snapshot?.status.can_manage_results ? <Btn
         variant="alt"
         title="Retry failed jobs"
         onPress={() =>
           automation.run('retry').catch(error => toast(error.message))
         }
-      />
+      /> : null}
       <Btn
         variant="alt"
         title="Export cloud backup"
@@ -942,26 +808,11 @@ export function CloudSettingsScreen() {
           }
         }}
       />
+      <Btn variant="alt" title="Export statement (CSV, Excel, PDF)" onPress={() => setSheet({ kind: 'export' })} />
       <MigrationPanel />
       <BackupRestore />
-      <H2>Recently deleted</H2>
-      {automation.snapshot?.trash.map(bond => (
-        <View key={bond.id}>
-          <Note>
-            {bond.n} · {fmt(bond.d)}
-          </Note>
-          <Btn
-            variant="alt"
-            title="Restore bond"
-            onPress={() =>
-              automation.repository
-                .update(bond, { deleted_at: null })
-                .then(() => automation.reload())
-                .catch(error => toast(error.message))
-            }
-          />
-        </View>
-      ))}
+      <Btn variant="alt" title={`Recently deleted (${automation.snapshot?.trash.length ?? 0})`} onPress={() => setTrashOpen(true)} />
+      <CloudTrash visible={trashOpen} onClose={() => setTrashOpen(false)} />
       <Row>
         <Label>Large text</Label>
         <Switch value={big} onValueChange={setBig} />

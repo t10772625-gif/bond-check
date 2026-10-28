@@ -13,7 +13,7 @@ major_version = 17
 
 [auth]
 enabled = true
-enable_signup = false
+enable_signup = true
 
 [functions.connectivity-spike]
 verify_jwt = false
@@ -30,4 +30,6 @@ verify_jwt = false
 [functions.check-now]
 verify_jwt = false
 [functions.device-sync]
+verify_jwt = false
+[functions.confirm-email]
 verify_jwt = false

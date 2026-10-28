@@ -47,7 +47,7 @@ export const Row = ({ children, style }: { children: React.ReactNode; style?: St
 /* ---------- Button ---------- */
 type BtnVariant = 'primary' | 'alt' | 'red';
 export function Btn({
-  title, onPress, variant = 'primary', sm, style, flexNone,
+  title, onPress, variant = 'primary', sm, style, flexNone, disabled = false,
 }: {
   title: string;
   onPress: () => void;
@@ -55,6 +55,7 @@ export function Btn({
   sm?: boolean;
   style?: StyleProp<ViewStyle>;
   flexNone?: boolean;
+  disabled?: boolean;
 }) {
   const { c } = useTheme();
   const bg = variant === 'primary' ? c.em : variant === 'red' ? c.red : c.surf;
@@ -62,18 +63,23 @@ export function Btn({
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
       style={({ pressed }) => [
         {
           backgroundColor: bg,
           borderRadius: 14,
+          borderWidth: 1.5,
+          borderColor: 'transparent',
           alignItems: 'center',
           justifyContent: 'center',
-          opacity: pressed ? 0.75 : 1,
+          opacity: disabled ? 0.5 : pressed ? 0.75 : 1,
         },
         variant === 'alt' && { borderWidth: 1.5, borderColor: c.em },
         sm
-          ? { paddingVertical: 8, paddingHorizontal: 12, flex: flexNone ? undefined : 1 }
-          : { paddingVertical: 14, marginTop: 8, alignSelf: 'stretch' },
+          ? { minHeight: 44, paddingVertical: 8, paddingHorizontal: 12, flex: flexNone ? undefined : 1 }
+          : { minHeight: 52, paddingVertical: 12, marginTop: 12, alignSelf: 'stretch' },
         style,
       ]}>
       <Txt style={{ color: fg, fontWeight: '700', fontSize: sm ? 13 : 16, textAlign: 'center' }}>{title}</Txt>
@@ -401,115 +407,133 @@ export function Select<T extends string | number>({
 
 /* ---------- Date input with calendar ---------- */
 const pad = (n: number) => String(n).padStart(2, '0');
+function typedDate(text: string): string | null {
+  const raw = text.trim();
+  const parts = raw.match(/^(\d{2})[/.\-](\d{2})[/.\-](\d{4})$/);
+  const iso = parts ? `${parts[3]}-${parts[2]}-${parts[1]}` : raw;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const date = new Date(iso + 'T00:00:00Z');
+  return Number.isFinite(+date) && date.toISOString().slice(0, 10) === iso ? iso : null;
+}
 export function DateInput({
-  value, onChange, placeholder = 'Select date', allowEmpty = true, style,
+  value, onChange, placeholder = 'YYYY-MM-DD', allowEmpty = true, style,
 }: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  allowEmpty?: boolean;
-  style?: StyleProp<ViewStyle>;
+  value: string; onChange: (v: string) => void; placeholder?: string;
+  allowEmpty?: boolean; style?: StyleProp<ViewStyle>;
 }) {
   const { c, s } = useTheme();
   const [open, setOpen] = useState(false);
-  const base = value || today();
+  const [mode, setMode] = useState<'days' | 'months' | 'years'>('days');
+  const [yearQuery, setYearQuery] = useState('');
+  const base = typedDate(value) || today();
   const [y, setY] = useState(+base.slice(0, 4));
   const [m, setM] = useState(+base.slice(5, 7) - 1);
-
   useEffect(() => {
     if (open) {
-      const b = value || today();
-      setY(+b.slice(0, 4));
-      setM(+b.slice(5, 7) - 1);
+      const date = typedDate(value) || today();
+      setY(+date.slice(0, 4)); setM(+date.slice(5, 7) - 1);
+      setMode('days'); setYearQuery('');
     }
-  }, [open, value]);
-
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const cells = useMemo(() => {
-    const first = new Date(y, m, 1).getDay();
-    const days = new Date(y, m + 1, 0).getDate();
-    const arr: (number | null)[] = Array(first).fill(null);
-    for (let d = 1; d <= days; d++) arr.push(d);
+    const arr: (number | null)[] = Array(new Date(y, m, 1).getDay()).fill(null);
+    for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) arr.push(d);
     while (arr.length % 7) arr.push(null);
     return arr;
   }, [y, m]);
-
-  const move = (dm: number) => {
-    let nm = m + dm;
-    let ny = y;
-    while (nm < 0) { nm += 12; ny--; }
-    while (nm > 11) { nm -= 12; ny++; }
-    setM(nm);
-    setY(ny);
+  const move = (amount: number) => {
+    const next = new Date(y, m + amount, 1);
+    setY(next.getFullYear()); setM(next.getMonth());
   };
-  const pick = (iso: string) => {
-    onChange(iso);
-    setOpen(false);
-  };
-  const t = today();
-
+  const pick = (iso: string) => { onChange(iso); setOpen(false); };
+  const maxYear = new Date().getFullYear() + 10;
+  const years = Array.from({ length: maxYear - 1899 }, (_, i) => maxYear - i)
+    .filter(year => !yearQuery || String(year).includes(yearQuery));
   return (
     <>
-      <Pressable onPress={() => setOpen(true)} style={[s.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, style]}>
-        <Txt numberOfLines={1} style={{ flex: 1, color: value ? c.ink : c.mut }}>{value ? fd(value) : placeholder}</Txt>
-        <Txt style={{ fontSize: 14 }}>📅</Txt>
-      </Pressable>
-      {open ? (
-      <Modal visible transparent animationType="fade" onRequestClose={() => setOpen(false)} statusBarTranslucent>
-        <Pressable style={{ flex: 1, backgroundColor: c.backdrop, justifyContent: 'center', padding: 20 }} onPress={() => setOpen(false)}>
-          <Pressable style={{ backgroundColor: c.surf, borderRadius: 20, padding: 14 }} onPress={() => {}}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <NavBtn label="«" onPress={() => move(-12)} />
-              <NavBtn label="‹" onPress={() => move(-1)} />
-              <Txt style={{ fontWeight: '700', fontFamily: fonts.serif, fontSize: 17, flex: 1, textAlign: 'center' }}>
-                {MONTHS_LONG[m]} {y}
-              </Txt>
-              <NavBtn label="›" onPress={() => move(1)} />
-              <NavBtn label="»" onPress={() => move(12)} />
-            </View>
-            <View style={{ flexDirection: 'row' }}>
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                <Txt key={i} style={{ flex: 1, textAlign: 'center', color: c.mut, fontSize: 12, fontWeight: '700', paddingVertical: 4 }}>{d}</Txt>
-              ))}
-            </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              {cells.map((d, i) => {
-                const iso = d ? `${y}-${pad(m + 1)}-${pad(d)}` : '';
-                const sel = iso && iso === value;
-                const isT = iso === t;
-                return (
-                  <View key={i} style={{ width: `${100 / 7}%`, aspectRatio: 1, padding: 2 }}>
-                    {d ? (
-                      <Pressable
-                        onPress={() => pick(iso)}
-                        style={{
-                          flex: 1,
-                          borderRadius: 99,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: sel ? c.em : 'transparent',
-                          borderWidth: isT && !sel ? 1.5 : 0,
-                          borderColor: c.em,
-                        }}>
-                        <Txt style={{ fontSize: 14, color: sel ? '#fff' : c.ink, fontWeight: sel || isT ? '700' : '400' }}>{d}</Txt>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                );
-              })}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-              {allowEmpty ? <Btn sm variant="alt" title="Clear" onPress={() => pick('')} /> : null}
-              <Btn sm variant="alt" title="Today" onPress={() => pick(t)} />
-              <Btn sm title="Close" onPress={() => setOpen(false)} />
-            </View>
-          </Pressable>
+      <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8 }, style]}>
+        <TextInput
+          testID="date-text-input" accessibilityLabel="Type date"
+          value={value} placeholder="YYYY-MM-DD or DD/MM/YYYY"
+          placeholderTextColor={c.mut} autoCorrect={false} autoCapitalize="none"
+          keyboardType="numbers-and-punctuation"
+          onChangeText={text => onChange(typedDate(text) || text)}
+          style={[s.input, { flex: 1, color: c.ink }]}
+        />
+        <Pressable accessibilityRole="button" accessibilityLabel="Choose date"
+          onPress={() => { Keyboard.dismiss(); setOpen(true); }}
+          style={{ padding: 12, borderRadius: 12, backgroundColor: c.grey }}>
+          <Txt style={{ color: c.em, fontWeight: '700' }}>Calendar</Txt>
         </Pressable>
-      </Modal>
+      </View>
+      <Note>{typedDate(value) ? fd(typedDate(value)!) : placeholder}</Note>
+      {open ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setOpen(false)} statusBarTranslucent>
+          <Pressable style={{ flex: 1, backgroundColor: c.backdrop, justifyContent: 'center', padding: 20 }} onPress={() => setOpen(false)}>
+            <Pressable style={{ backgroundColor: c.surf, borderRadius: 20, padding: 14, maxHeight: '90%' }} onPress={() => {}}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <NavBtn label="‹" onPress={() => move(-1)} />
+                <Pressable accessibilityLabel="Choose month" onPress={() => setMode('months')} style={{ flex: 1, padding: 8 }}>
+                  <Txt style={{ fontWeight: '700', fontSize: 17, textAlign: 'center' }}>{MONTHS_LONG[m]} ▾</Txt>
+                </Pressable>
+                <Pressable accessibilityLabel="Choose year" onPress={() => { setYearQuery(''); setMode('years'); }} style={{ padding: 8 }}>
+                  <Txt style={{ fontWeight: '700', fontSize: 17, color: c.em }}>{y} ▾</Txt>
+                </Pressable>
+                <NavBtn label="›" onPress={() => move(1)} />
+              </View>
+              {mode === 'years' ? (
+                <>
+                  <Input accessibilityLabel="Find year" placeholder="Type a year, e.g. 2016" value={yearQuery} onChangeText={setYearQuery} keyboardType="number-pad" maxLength={4} />
+                  <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                      {years.map(year => (
+                        <Pressable key={year} accessibilityLabel={`Year ${year}`} onPress={() => { setY(year); setMode('months'); Keyboard.dismiss(); }}
+                          style={{ width: '25%', paddingVertical: 14, borderRadius: 10, backgroundColor: y === year ? c.grnbg : 'transparent' }}>
+                          <Txt style={{ textAlign: 'center', color: c.ink, fontWeight: y === year ? '700' : '400' }}>{year}</Txt>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </>
+              ) : mode === 'months' ? (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {MONTHS_LONG.map((month, index) => (
+                    <Pressable key={month} accessibilityLabel={`Month ${month}`} onPress={() => { setM(index); setMode('days'); }}
+                      style={{ width: '33.333%', paddingVertical: 18, borderRadius: 10, backgroundColor: m === index ? c.grnbg : 'transparent' }}>
+                      <Txt style={{ textAlign: 'center', fontSize: 13, fontWeight: m === index ? '700' : '400' }}>{month}</Txt>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <>
+                  <View style={{ flexDirection: 'row' }}>
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => <Txt key={i} style={{ flex: 1, textAlign: 'center', color: c.mut, fontSize: 12 }}>{day}</Txt>)}
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {cells.map((day, i) => {
+                      const iso = day ? `${y}-${pad(m + 1)}-${pad(day)}` : '';
+                      return <View key={i} style={{ width: '14.2857%', aspectRatio: 1, padding: 2 }}>
+                        {day ? <Pressable accessibilityLabel={`Select ${iso}`} onPress={() => pick(iso)}
+                          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 99, backgroundColor: iso === value ? c.em : 'transparent' }}>
+                          <Txt style={{ color: iso === value ? '#fff' : c.ink, fontSize: 14 }}>{day}</Txt>
+                        </Pressable> : null}
+                      </View>;
+                    })}
+                  </View>
+                </>
+              )}
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                {allowEmpty ? <Btn sm variant="alt" title="Clear" onPress={() => pick('')} /> : null}
+                <Btn sm variant="alt" title="Today" onPress={() => pick(today())} />
+                <Btn sm title="Close" onPress={() => setOpen(false)} />
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       ) : null}
     </>
   );
 }
-
 function NavBtn({ label, onPress }: { label: string; onPress: () => void }) {
   const { c } = useTheme();
   return (

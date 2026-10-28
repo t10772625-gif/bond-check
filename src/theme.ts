@@ -64,6 +64,7 @@ const makeStyles = (c: Colors) =>
       letterSpacing: 0.6,
     },
     input: {
+      minHeight: 52,
       fontSize: 16,
       paddingHorizontal: 12,
       paddingVertical: 11,

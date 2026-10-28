@@ -59,7 +59,7 @@ test('cloud login submits to the cloud account flow without local demo authentic
       'owner@example.com',
       'example-password',
     );
-    expect(JSON.stringify(renderer!.toJSON())).toContain('created privately');
+    expect(JSON.stringify(renderer!.toJSON())).toContain('Each account keeps its own private bonds');
   } finally {
     await ReactTestRenderer.act(async () => {
       renderer?.unmount();
@@ -85,15 +85,15 @@ test('original signup layout validates and submits a real cloud registration flo
       fields[3].props.onChangeText('example-password');
     });
     await ReactTestRenderer.act(async () => {
-      await renderer!.root
-        .findByProps({ title: 'Create account' })
-        .props.onPress();
+      const press = renderer!.root.findByProps({ title: 'Create account' }).props.onPress;
+      await Promise.all([press(), press(), press()]);
     });
     expect(mockSignUp).toHaveBeenCalledWith(
       'Test Owner',
       'owner@example.com',
       'example-password',
     );
+    expect(mockSignUp).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(renderer!.toJSON())).toContain('Check your email');
   } finally {
     await ReactTestRenderer.act(async () => {

@@ -41,6 +41,7 @@ export function normalizeBond(input: BondDraft) {
     purchased_on: input.date || null,
     note: input.note.trim(),
     holder: input.holder.trim(),
+    ...(typeof input.archived === 'boolean' ? { archived: input.archived } : {}),
   };
 }
 export function migrationPreview(

@@ -82,4 +82,8 @@ supabase/.temp/
 .verification/
 *.hprof
 
+# Retain only the current distributable; older local test APKs stay out of Git.
+/BondCheck-v*.apk
+!/BondCheck-v1.8.6.apk
+
 .gradle-project/

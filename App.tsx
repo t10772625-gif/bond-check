@@ -29,6 +29,7 @@ import SplashScreen from './src/screens/SplashScreen';
 import LockScreen from './src/screens/LockScreen';
 import SheetHost from './src/sheets/Sheets';
 import PreviewModal from './src/screens/PreviewModal';
+import { CloudLockScreen } from './src/cloud/CloudLockScreen';
 import { AppProvider, useApp } from './src/store/AppStore';
 import { useTheme } from './src/theme';
 import type { Tab } from './src/types';
@@ -199,7 +200,8 @@ function Root() {
     const timer = setTimeout(() => setCloudSplash(false), 2400);
     return () => clearTimeout(timer);
   }, []);
-  const cloudLoading = automation.busy || !automation.loaded;
+  const cloudLoading = !automation.loaded;
+  const cloudPrivateLocked = automation.configured && !!automation.session && !automation.recovering && (!automation.biometrics.ready || automation.biometrics.locked);
   const darkBar =
     (automation.configured &&
       (cloudSplash || cloudLoading || automation.signingOut)) ||
@@ -217,8 +219,10 @@ function Root() {
           <LogoutScreen />
         ) : cloudLoading ? (
           <LoadingScreen />
-        ) : !automation.session || !automation.snapshot ? (
+        ) : automation.recovering || !automation.session || !automation.snapshot ? (
           <CloudLoginScreen />
+        ) : !automation.biometrics.ready || automation.biometrics.locked ? (
+          <CloudLockScreen />
         ) : (
           <MainApp />
         )
@@ -232,9 +236,8 @@ function Root() {
           {phase === 'app' ? <MainApp /> : null}
         </>
       )}
-      <SheetHost />
-      <ToastView bottom={(phase === 'app' ? 90 : 24) + insets.bottom} />
-      <DialogHost />
+      {(!automation.configured || (automation.session && automation.biometrics.ready && !automation.biometrics.locked && !automation.recovering)) ? <SheetHost /> : null}
+      {!cloudPrivateLocked ? <><ToastView bottom={(phase === 'app' ? 90 : 24) + insets.bottom} /><DialogHost /></> : null}
     </View>
   );
 }

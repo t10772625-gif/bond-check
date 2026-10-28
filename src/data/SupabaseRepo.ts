@@ -34,6 +34,9 @@ interface StoredBond {
   deleted_at: string | null;
   wins: StoredWin[];
 }
+function dateConflict(draw: CloudDraw) {
+  return !!draw.held_on && draw.held_on !== draw.draw_date;
+}
 function toBond(row: StoredBond): Bond {
   const wins: Win[] = row.wins
     .map(win => ({
@@ -46,7 +49,7 @@ function toBond(row: StoredBond): Bond {
       cloudId: win.id,
       drawId: win.draw_id,
       amount: win.prize_amount,
-      provisional: win.provisional,
+      provisional: win.provisional || dateConflict(win.draws),
       acknowledged: !!win.acknowledged_at,
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -69,7 +72,7 @@ export class SupabaseRepo implements BondRepository {
   private rows() {
     return this.api.select<StoredBond>(
       'bonds',
-      { select: '*,wins(*,draws(*))', order: 'local_id.asc' },
+      { select: '*,wins(*,draws(*))', order: 'local_id.desc' },
       true,
     );
   }
@@ -79,7 +82,7 @@ export class SupabaseRepo implements BondRepository {
   async snapshot(): Promise<CloudSnapshot> {
     const [rows, draws, files, status] = await Promise.all([
       this.rows(),
-      this.api.select<CloudDraw>('draws', { order: 'draw_date.desc' }, true),
+      this.api.select<CloudDraw>('draws', { order: 'id.asc' }, true),
       this.api.select<DrawFile>(
         'draw_files',
         { select: 'id,draw_id,url,kind,label,parse_status,issues,sha256' },
@@ -87,12 +90,18 @@ export class SupabaseRepo implements BondRepository {
       ),
       this.api.rpc<PipelineStatus>('pipeline_status'),
     ]);
+    const reviewedDraws: CloudDraw[] = draws.map(draw => dateConflict(draw) ? {
+      ...draw,
+      status: 'needs_review',
+      issues: [...draw.issues, `Draw date differs: listed ${draw.draw_date}, file ${draw.held_on}; official date needs verification`],
+    } : draw);
+    const conflictingVerified = draws.filter(draw => dateConflict(draw) && ['ok', 'ok_manual'].includes(draw.status)).length;
     return {
       bonds: rows.filter(b => !b.deleted_at).map(toBond),
       trash: rows.filter(b => b.deleted_at).map(toBond),
-      draws,
+      draws: reviewedDraws.sort((a, b) => b.draw_date.localeCompare(a.draw_date)),
       files,
-      status,
+      status: { ...status, verified: Math.max(0, status.verified - conflictingVerified), attention: status.attention + conflictingVerified },
       fetchedAt: new Date().toISOString(),
     };
   }
@@ -121,7 +130,7 @@ export class SupabaseRepo implements BondRepository {
         ? { deleted_at: draft.deleted_at }
         : {}),
     };
-    await this.api.request(
+    const updated = await this.api.request<StoredBond[]>(
       `/rest/v1/bonds?id=eq.${encodeURIComponent(bond.cloudId)}`,
       {
         method: 'PATCH',
@@ -132,6 +141,8 @@ export class SupabaseRepo implements BondRepository {
         body: JSON.stringify(values),
       },
     );
+    if (!Array.isArray(updated) || updated.length !== 1)
+      throw new Error('This bond has changed or is no longer available. Refresh and try again.');
   }
   remove(bond: Bond) {
     return this.update(bond, { deleted_at: new Date().toISOString() });

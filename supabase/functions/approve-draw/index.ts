@@ -21,4 +21,4 @@ serve(async (request, context) => {
     p_sha256: file_sha256,
   });
   return { ok: true };
-});
+}, false, true);

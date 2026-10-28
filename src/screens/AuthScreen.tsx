@@ -29,6 +29,7 @@ export function PasswordInput({
   placeholder?: string;
 }) {
   const [show, setShow] = useState(false);
+  const { c } = useTheme();
   return (
     <View style={{ justifyContent: 'center' }}>
       <Input
@@ -42,10 +43,16 @@ export function PasswordInput({
       />
       <Pressable
         onPress={() => setShow(!show)}
+        accessibilityRole="button"
+        accessibilityLabel={show ? 'Hide password' : 'Show password'}
+        accessibilityState={{ expanded: show }}
         hitSlop={10}
-        style={{ position: 'absolute', right: 12 }}
+        style={{ position: 'absolute', right: 4, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
       >
-        <Text style={{ fontSize: 18 }}>{show ? '🙈' : '👁'}</Text>
+        <View style={{ width: 22, height: 14, borderRadius: 12, borderWidth: 1.7, borderColor: c.mut, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.mut }} />
+        </View>
+        {!show ? <View style={{ position: 'absolute', width: 26, height: 2, backgroundColor: c.mut, transform: [{ rotate: '-40deg' }] }} /> : null}
       </Pressable>
     </View>
   );

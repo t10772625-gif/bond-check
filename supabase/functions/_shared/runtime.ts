@@ -24,7 +24,7 @@ async function equalSecret(a: string, b: string) {
   return different === 0 && a.length > 0 && b.length > 0;
 }
 
-export async function authorize(request: Request, cronOnly = false) {
+export async function authorize(request: Request, cronOnly = false, adminOnly = false) {
   const secret = Deno.env.get('CRON_SECRET');
   const suppliedSecret = request.headers.get('x-cron-secret') ?? '';
   if (
@@ -49,6 +49,8 @@ export async function authorize(request: Request, cronOnly = false) {
   const user = await userDb.request('/auth/v1/user');
   if (!user?.id || !(await userDb.rpc('is_app_owner')))
     throw Object.assign(new Error('Owner access required'), { status: 403 });
+  if (adminOnly && !(await userDb.rpc('is_result_admin')))
+    throw Object.assign(new Error('Result administrator access required'), { status: 403 });
   return { cron: false, user, userDb };
 }
 
@@ -66,12 +68,13 @@ export function serve(
     context: Awaited<ReturnType<typeof authorize>>,
   ) => Promise<unknown>,
   cronOnly = false,
+  adminOnly = false,
 ) {
   Deno.serve(async (request: Request) => {
     if (request.method !== 'POST')
       return Response.json({ error: 'POST required' }, { status: 405 });
     try {
-      const context = await authorize(request, cronOnly);
+      const context = await authorize(request, cronOnly, adminOnly);
       const result = await handler(request, context);
       return Response.json(result ?? { ok: true });
     } catch (error) {

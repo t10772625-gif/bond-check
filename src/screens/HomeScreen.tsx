@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -123,7 +123,8 @@ export default function HomeScreen() {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   const dq = useDeferredValue(q);
-  const [allOpen, setAllOpen] = useState(false);
+  const allOpen = app.allBondsOpen;
+  const setAllOpen = app.setAllBondsOpen;
 
   const L = useMemo(() => {
     if (!cur) return [] as Bond[];
@@ -163,10 +164,10 @@ export default function HomeScreen() {
           marginVertical: 2,
         }}
       >
-        <H2 style={{ marginTop: 0, marginBottom: 0, flexShrink: 1 }}>
+        <H2 style={{ marginTop: 0, marginBottom: 10, flexShrink: 1, fontSize: 19 }}>
           Hello, {firstName(U.name)} 👋
         </H2>
-        <Pressable
+        {!automation.configured ? <Pressable
           onPress={() =>
             automation.configured ? undefined : setSheet({ kind: 'ws' })
           }
@@ -186,7 +187,7 @@ export default function HomeScreen() {
           >
             {cur.personal ? '👤' : '👪'} {cur.name} ▾
           </Txt>
-        </Pressable>
+        </Pressable> : null}
       </View>
 
       <AutomationStatus />
@@ -349,7 +350,7 @@ export default function HomeScreen() {
         options={[
           ['all', 'All'],
           ['pend', `Won${pc ? ` (${pc})` : ''}`],
-          ['ren', 'Renewed'],
+          ['ren', automation.configured ? 'Claimed' : 'Renewed'],
           ['arch', 'Archived'],
         ]}
         value={flt}

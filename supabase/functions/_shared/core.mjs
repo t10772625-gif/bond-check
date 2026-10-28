@@ -53,9 +53,16 @@ export function extractAllDrawLinks(html, base) {
       const kind = new URL(anchor.url).pathname
         .match(/\.(txt|pdf|docx?|xlsx?)$/i)?.[1]
         .toLowerCase();
-      const match = anchor.label.match(/\b(\d{2})[-/](\d{2})[-/](\d{4})\b/);
-      if (!kind || !match) return [];
-      const date = `${match[3]}-${match[2]}-${match[1]}`;
+      const match = anchor.label.match(/\b(\d{2})[-/](\d{2})[-/](\d{4})\b/)
+        ?? decodeURIComponent(new URL(anchor.url).pathname).match(/(?:^|[^\d])(\d{2})[-_](\d{2})[-_](20\d{2})(?!\d)/);
+      const compact = `${anchor.label} ${new URL(anchor.url).pathname}`.match(/(?:^|[^\d])(\d{2})(\d{2})(\d{2})(?!\d)/);
+      if (!kind || (!match && !compact)) return [];
+      const date = match ? `${match[3]}-${match[2]}-${match[1]}`
+        : `20${compact[3]}-${compact[2]}-${compact[1]}`;
+      if (!match) {
+        const pathYear = new URL(anchor.url).pathname.match(/\/((?:19|20)\d{2})\//)?.[1];
+        if (pathYear && pathYear !== date.slice(0, 4)) return [];
+      }
       const parsed = new Date(`${date}T00:00:00Z`);
       if (
         !Number.isFinite(+parsed) ||
@@ -257,6 +264,11 @@ export function parseWithStructure(text, draw, structures) {
   ) {
     verification.issues.push(
       `Draw number differs: stored ${draw.draw_no}, file ${header.meta.drawNo}`,
+    );
+  }
+  if (header.meta.heldOn && header.meta.heldOn !== draw.draw_date) {
+    verification.issues.push(
+      `Draw date differs: listed ${draw.draw_date}, file ${header.meta.heldOn}; verify the official date before counting this result`,
     );
   }
   verification.ok = verification.issues.length === 0;

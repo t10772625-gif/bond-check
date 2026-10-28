@@ -6,6 +6,7 @@ export interface CloudUser {
   user_metadata?: { name?: string };
 }
 export interface CloudSession {
+  recovery?: boolean;
   access_token: string;
   refresh_token: string;
   expires_at: number;
@@ -24,6 +25,7 @@ export interface CloudDraw {
   id: string;
   denomination: number;
   draw_date: string;
+  held_on?: string | null;
   draw_no: number | null;
   status: DrawStatus;
   accepted_file_id: string | null;
@@ -50,6 +52,7 @@ export interface DrawFile {
   issues: string[] | null;
 }
 export interface PipelineStatus {
+  can_manage_results?: boolean;
   total: number;
   verified: number;
   attention: number;
@@ -80,6 +83,7 @@ export interface CloudSnapshot {
   fetchedAt: string;
 }
 export interface BondDraft {
+  archived?: boolean;
   n: string;
   d: number;
   date: string;

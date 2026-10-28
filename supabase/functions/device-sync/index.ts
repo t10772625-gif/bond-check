@@ -89,4 +89,4 @@ serve(async (request, context) => {
   }
   await db.update('heartbeat', { id: 'eq.1' }, { last_device_sync: new Date().toISOString() });
   return { ok: true };
-});
+}, false, true);

@@ -134,7 +134,7 @@ export class Pipeline {
     let bytes;
     let digest = file.sha256;
     let storagePath = file.storage_path;
-    if (file.url.startsWith('manual://') || file.device_fetched_at || (this.preferStoredBytes && storagePath)) {
+    if (file.url.startsWith('manual://') || (file.device_fetched_at && Date.now() - Date.parse(file.device_fetched_at) < 86400000) || (this.preferStoredBytes && storagePath)) {
       if (!storagePath) throw new Error('Manual file has no stored bytes');
       bytes = await this.db.download('draw-raw', storagePath);
     } else {
@@ -229,6 +229,11 @@ export class Pipeline {
       return { ...file, needsConversion: true };
     }
     const result = parseWithStructure(text, draw, structures);
+    if (file.url.startsWith('manual://')) {
+      result.verification.issues.push('Uploaded result requires explicit administrator review against the official source');
+      result.verification.ok = false;
+      result.status = 'needs_review';
+    }
     result.verification.warnings.push(...conversionWarnings);
     if (conversionWarnings.some(w => /numeric cells|OCR/i.test(w))) {
       result.verification.issues.push(

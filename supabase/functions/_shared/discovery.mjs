@@ -1,8 +1,12 @@
-import { decodeOfficial, extractAllDrawLinks } from './core.mjs';
+import { anchors, decodeOfficial, extractAllDrawLinks } from './core.mjs';
 
 // Both server fetching and authenticated device fetching use this ingestion path.
 export async function registerSourcePage(db, source, bytes, url, headers = new Headers()) {
-  const links = extractAllDrawLinks(decodeOfficial(bytes), url);
+  const html = decodeOfficial(bytes);
+  const links = extractAllDrawLinks(html, url);
+  const recognized = new Set(links.map(link => link.url));
+  const skipped = anchors(html, url).filter(link => /\.(txt|pdf|docx?|xlsx?)(?:\?|$)/i.test(link.url) && !recognized.has(link.url));
+  if (skipped.length) throw new Error(`Discovery needs review: ${skipped.length} result links have an unrecognized date: ${skipped.slice(0, 3).map(link => link.label || link.url).join('; ')}`);
   if (!links.length) throw new Error('No dated official result links found; inspect the source page');
   if (source.last_link_count > 10 && links.length < source.last_link_count * 0.8)
     throw new Error(`Result links fell from ${source.last_link_count} to ${links.length}; inspect the source page`);

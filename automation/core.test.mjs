@@ -30,6 +30,14 @@ function fixture({ short = false, first = '347425' } = {}) {
     Array.from({ length: 1696 }, (_, i) => String(i + 100000)).join('\n')
   );
 }
+test('a file/list draw-date conflict cannot become verified prize money', () => {
+  const text = fixture().replace('HELD ON 15-10-2026', 'HELD ON 14-10-2026');
+  const result = parseWithStructure(text, draw, [structure]);
+  assert.equal(result.status, 'needs_review');
+  assert.equal(result.verification.ok, false);
+  assert.match(result.verification.issues.join(' '), /Draw date differs/);
+  assert.ok(resultNumbers(result).every(number => number.provisional));
+});
 test('discovery keeps every format and revised file; validates dates and host', () => {
   const html = `<a href="/a.txt?download=1&amp;x=2">15-10-2026 (Text)</a>
     <a href='/a.pdf'>15-10-2026 (PDF)</a><a href='/Revised-a.txt'>15-10-2026 revised</a>

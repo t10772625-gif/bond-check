@@ -56,3 +56,10 @@ test('CSV preserves zero-prefixed numbers and quoted cells; invalid rows remain 
     'unclosed',
   );
 });
+
+test('CSV rejects ambiguous headers and enforces its row limit even without a trailing newline', () => {
+  expect(() => previewCsv('number,denomination,purchased_on,number\n000001,100,2020-01-01,000002')).toThrow('duplicate column');
+  const rows = Array.from({ length: 10001 }, (_, index) => `${String(index).padStart(6, '0')},100,2020-01-01`);
+  expect(() => previewCsv('number,denomination,purchased_on\n' + rows.join('\n'))).toThrow('10,000');
+  expect(previewCsv('number,denomination,purchased_on,archived\n000001,100,2020-01-01,true').valid[0].archived).toBe(true);
+});
